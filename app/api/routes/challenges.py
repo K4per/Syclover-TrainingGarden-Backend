@@ -508,23 +508,29 @@ def _sse(payload: dict) -> str:
 
 
 @router.get("/tags/catalog", response_model=list[TagPublic])
-async def tag_catalog(_: CurrentUser, database: DatabaseDep) -> list[TagPublic]:
+async def tag_catalog(user: CurrentUser, database: DatabaseDep) -> list[TagPublic]:
     """Every tag, including the derived static/dynamic states and their usage counts."""
+    is_admin = user["role"] in {"admin", "root_admin"}
+    visibility = "" if is_admin else "AND c.status = 'published'"
+    topic_visibility = "" if is_admin else (
+        "WHERE EXISTS (SELECT 1 FROM challenge_tags visible "
+        "JOIN challenges c ON c.id = visible.challenge_id "
+        "WHERE visible.tag_id = t.id AND c.status = 'published')"
+    )
     with database.connect() as connection:
         rows = connection.execute(
-            """
-            SELECT t.id, t.name, t.kind, t.description,
-                   (SELECT COUNT(*) FROM challenge_tags ct WHERE ct.tag_id = t.id) AS challenge_count
-            FROM tags t ORDER BY t.sort_order, t.name
-            """
+            f"SELECT t.id, t.name, t.kind, t.description, t.sort_order, "
+            f"(SELECT COUNT(*) FROM challenge_tags ct JOIN challenges c ON c.id = ct.challenge_id "
+            f"WHERE ct.tag_id = t.id {visibility}) AS challenge_count "
+            f"FROM tags t {topic_visibility} ORDER BY t.sort_order, t.name"
         ).fetchall()
         dynamic_count = connection.execute(
-            "SELECT COUNT(*) AS total FROM challenges "
-            "WHERE docker_image IS NOT NULL AND internal_port IS NOT NULL"
+            "SELECT COUNT(*) AS total FROM challenges c "
+            f"WHERE docker_image IS NOT NULL AND internal_port IS NOT NULL {visibility}"
         ).fetchone()["total"]
         static_count = connection.execute(
-            "SELECT COUNT(*) AS total FROM challenges "
-            "WHERE docker_image IS NULL OR internal_port IS NULL"
+            "SELECT COUNT(*) AS total FROM challenges c "
+            f"WHERE (docker_image IS NULL OR internal_port IS NULL) {visibility}"
         ).fetchone()["total"]
     catalog = [TagPublic.model_validate(dict(row)) for row in rows]
     catalog.append(
@@ -534,6 +540,7 @@ async def tag_catalog(_: CurrentUser, database: DatabaseDep) -> list[TagPublic]:
             kind="state",
             description="动态题目：启动独立 Docker 实例",
             challenge_count=dynamic_count,
+            sort_order=10000,
         )
     )
     catalog.append(
@@ -543,6 +550,7 @@ async def tag_catalog(_: CurrentUser, database: DatabaseDep) -> list[TagPublic]:
             kind="state",
             description="静态题目：仅附件与描述",
             challenge_count=static_count,
+            sort_order=10000,
         )
     )
     return catalog
@@ -563,12 +571,12 @@ async def create_tag(payload: TagCreate, _: AdminUser, database: DatabaseDep) ->
         with database.connect() as connection:
             connection.execute(
                 "INSERT INTO tags (id, name, kind, description, sort_order, created_at) "
-                "VALUES (?, ?, 'topic', ?, 100, ?)",
-                (tag_id, name, payload.description, datetime.now(UTC).isoformat()),
+                "VALUES (?, ?, 'topic', ?, ?, ?)",
+                (tag_id, name, payload.description, payload.sort_order, datetime.now(UTC).isoformat()),
             )
             row = connection.execute(
                 """
-                SELECT t.id, t.name, t.kind, t.description,
+                SELECT t.id, t.name, t.kind, t.description, t.sort_order,
                        (SELECT COUNT(*) FROM challenge_tags ct WHERE ct.tag_id = t.id) AS challenge_count
                 FROM tags t WHERE t.id = ?
                 """,
@@ -607,7 +615,7 @@ async def rename_tag(
                 raise HTTPException(status_code=404, detail="Tag not found")
             row = connection.execute(
                 """
-                SELECT t.id, t.name, t.kind, t.description,
+                SELECT t.id, t.name, t.kind, t.description, t.sort_order,
                        (SELECT COUNT(*) FROM challenge_tags ct WHERE ct.tag_id = t.id) AS challenge_count
                 FROM tags t WHERE t.id = ?
                 """,
@@ -625,10 +633,10 @@ async def delete_tag(tag_id: str, _: AdminUser, database: DatabaseDep) -> Messag
             status_code=422, detail="static/dynamic tags are derived from the challenge environment"
         )
     with database.connect() as connection:
+        connection.execute("DELETE FROM challenge_tags WHERE tag_id = ?", (tag_id,))
         cursor = connection.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Tag not found")
-        connection.execute("DELETE FROM challenge_tags WHERE tag_id = ?", (tag_id,))
     return Message(message="Tag deleted")
 
 
@@ -818,6 +826,7 @@ async def delete_challenge(
         connection.execute("DELETE FROM submissions WHERE challenge_id = ?", (challenge_id,))
         connection.execute("DELETE FROM hints WHERE challenge_id = ?", (challenge_id,))
         connection.execute("DELETE FROM challenge_tags WHERE challenge_id = ?", (challenge_id,))
+        connection.execute("DELETE FROM collection_challenges WHERE challenge_id = ?", (challenge_id,))
         connection.execute("DELETE FROM instances WHERE challenge_id = ?", (challenge_id,))
         connection.execute("DELETE FROM assets WHERE challenge_id = ?", (challenge_id,))
         connection.execute("DELETE FROM challenges WHERE id = ?", (challenge_id,))

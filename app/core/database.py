@@ -169,6 +169,34 @@ ON defense_solves(challenge_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_hints_challenge_status_created
 ON hints(challenge_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_challenge_tags_tag ON challenge_tags(tag_id);
+
+CREATE TABLE IF NOT EXISTS announcements (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_announcements_status_created ON announcements(status, created_at);
+
+CREATE TABLE IF NOT EXISTS collections (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS collection_challenges (
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    challenge_id TEXT NOT NULL REFERENCES challenges(id),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (collection_id, challenge_id)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_challenges_challenge ON collection_challenges(challenge_id);
 """
 
 # Knowledge-point tags seeded on first start; administrators may rename or remove them.
@@ -233,11 +261,6 @@ class Database:
                     "INSERT OR IGNORE INTO achievements "
                     "(slug, name, description, acquisition, icon, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                     (slug, name, description, acquisition, icon, now),
-                )
-                connection.execute(
-                    "UPDATE achievements SET name = ?, description = ?, acquisition = ?, icon = ? "
-                    "WHERE slug = ?",
-                    (name, description, acquisition, icon, slug),
                 )
             user_rows = connection.execute("SELECT id FROM users").fetchall()
             connection.executemany(

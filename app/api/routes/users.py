@@ -198,6 +198,32 @@ async def user_profile(user_id: str, _: CurrentUser, database: DatabaseDep) -> U
     return profile
 
 
+@router.delete("/{user_id}/achievements/{achievement_slug}", response_model=Message)
+async def revoke_user_achievement(
+    user_id: str, achievement_slug: str, _: RootAdminUser, database: DatabaseDep
+) -> Message:
+    # Progress badges would be recreated by the next solve or startup backfill.
+    with database.connect() as connection:
+        achievement = connection.execute(
+            "SELECT 1 FROM achievements WHERE slug = ?", (achievement_slug,)
+        ).fetchone()
+        if not achievement:
+            raise HTTPException(status_code=404, detail="Achievement not found")
+        if achievement_slug not in {"core_member", "peak_geek_2025"}:
+            from app.core.database import ACHIEVEMENT_DEFINITIONS
+            if achievement_slug in {item[0] for item in ACHIEVEMENT_DEFINITIONS}:
+                raise HTTPException(status_code=409, detail="Automatic achievements cannot be revoked")
+        removed = connection.execute(
+            "DELETE FROM user_achievements WHERE user_id = ? AND achievement_slug = ?",
+            (user_id, achievement_slug),
+        )
+        if not removed.rowcount:
+            raise HTTPException(status_code=404, detail="User achievement not found")
+        if achievement_slug == "core_member":
+            grant_achievement(connection, user_id, "sprout_member")
+    return Message(message="Achievement revoked")
+
+
 @router.delete("/{user_id}", response_model=Message)
 async def delete_user(
     user_id: str,

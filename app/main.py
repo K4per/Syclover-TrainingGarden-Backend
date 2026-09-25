@@ -7,14 +7,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, awdp, challenges, invites, instances, scoreboard, users
+from app.api.routes import achievements, auth, awdp, challenges, content, invites, instances, scoreboard, users
 from app.core.config import Settings, get_settings
 from app.core.database import Database
 from app.core.seed import seed_database
 from app.services.docker import DockerService
 from app.services.reaper import run_reaper
 
-VERSION = "Alpha0.0.8"
+VERSION = "Alpha0.0.9"
 logger = logging.getLogger("syclover")
 
 
@@ -85,6 +85,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_prefix = "/api/v1"
     application.include_router(auth.router, prefix=api_prefix)
     application.include_router(users.router, prefix=api_prefix)
+    application.include_router(achievements.router, prefix=api_prefix)
+    application.include_router(content.announcements, prefix=api_prefix)
+    application.include_router(content.collections, prefix=api_prefix)
     application.include_router(invites.router, prefix=api_prefix)
     application.include_router(challenges.router, prefix=api_prefix)
     application.include_router(instances.router, prefix=api_prefix)

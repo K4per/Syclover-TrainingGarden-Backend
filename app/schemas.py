@@ -97,6 +97,64 @@ class AchievementPublic(BaseModel):
     acquisition: str
     icon: str
     awarded_at: datetime | None = None
+    is_builtin: bool = False
+
+
+class AchievementCreate(BaseModel):
+    slug: str = Field(min_length=2, max_length=48, pattern=r"^[a-z0-9_]+$")
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(min_length=1, max_length=300)
+    acquisition: str = Field(min_length=1, max_length=200)
+    icon: str = Field(default="core", min_length=1, max_length=48, pattern=r"^[a-z0-9-]+$")
+
+
+class AchievementUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    description: str | None = Field(default=None, min_length=1, max_length=300)
+    acquisition: str | None = Field(default=None, min_length=1, max_length=200)
+    icon: str | None = Field(default=None, min_length=1, max_length=48, pattern=r"^[a-z0-9-]+$")
+
+
+class AnnouncementCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1, max_length=10000)
+    status: Literal["draft", "published"] = "draft"
+
+
+class AnnouncementUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    content: str | None = Field(default=None, min_length=1, max_length=10000)
+    status: Literal["draft", "published"] | None = None
+
+
+class AnnouncementPublic(AnnouncementCreate):
+    id: str
+    author: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CollectionCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    slug: str = Field(min_length=2, max_length=80, pattern=r"^[a-z0-9-]+$")
+    description: str = Field(min_length=1, max_length=5000)
+    status: Literal["draft", "published"] = "draft"
+    challenge_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+class CollectionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    slug: str | None = Field(default=None, min_length=2, max_length=80, pattern=r"^[a-z0-9-]+$")
+    description: str | None = Field(default=None, min_length=1, max_length=5000)
+    status: Literal["draft", "published"] | None = None
+    challenge_ids: list[str] | None = Field(default=None, max_length=200)
+
+
+class CollectionPublic(CollectionCreate):
+    id: str
+    challenge_count: int = 0
+    created_at: datetime
+    updated_at: datetime
 
 
 class UserProfile(UserPublic):
@@ -154,16 +212,19 @@ class TagPublic(BaseModel):
     kind: Literal["topic", "state"]
     description: str | None = None
     challenge_count: int = 0
+    sort_order: int = 100
 
 
 class TagCreate(BaseModel):
     name: str = Field(min_length=1, max_length=32)
     description: str | None = Field(default=None, max_length=200)
+    sort_order: int = Field(default=100, ge=0, le=10000)
 
 
 class TagUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=32)
     description: str | None = Field(default=None, max_length=200)
+    sort_order: int | None = Field(default=None, ge=0, le=10000)
 
 
 class AssetPublic(BaseModel):

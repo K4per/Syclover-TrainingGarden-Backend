@@ -609,6 +609,17 @@ class DockerService:
                     raise ContainerError(str(exc)) from exc
                 target = f"/tmp/syclover-patch-{bundle_id}"
                 self._run(["docker", "cp", f"{directory}/.", f"{container_id}:{target}"], timeout=20)
+                # docker cp creates the staging directory as root. Challenge images
+                # commonly run as www-data, so make the copied tree accessible to
+                # the container's default user before it copies files into /app.
+                uid = self._run(["docker", "exec", container_id, "id", "-u"], timeout=10).strip()
+                gid = self._run(["docker", "exec", container_id, "id", "-g"], timeout=10).strip()
+                if not uid.isdecimal() or not gid.isdecimal():
+                    raise ContainerError("Cannot determine the challenge container user")
+                self._run(
+                    ["docker", "exec", "--user", "0", container_id, "chown", "-R", f"{uid}:{gid}", target],
+                    timeout=20,
+                )
                 command = [
                     "docker",
                     "exec",

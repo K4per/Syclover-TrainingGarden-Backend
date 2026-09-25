@@ -38,14 +38,16 @@ def _effective_public_host(request: Request, settings) -> str:
     The container ports are published on ``SYCL_INSTANCE_BIND_ADDRESS``, so the reported
     address must match it or the UI would advertise a link that cannot work:
 
-    * a wildcard bind means "any interface", so the platform reuses the hostname the
-      player reached the platform on;
+    * a wildcard bind means "any interface"; an explicit public hostname takes
+      precedence, otherwise the platform reuses the hostname the player reached;
     * a concrete bind address is reported as-is;
     * otherwise the configured ``SYCL_INSTANCE_PUBLIC_HOST`` is used.
     """
     configured = (settings.instance_public_host or "").strip()
     bind = (settings.instance_bind_address or "").strip()
     if bind in {"0.0.0.0", "::", "[::]"}:
+        if configured and configured.lower() not in LOOPBACK_HOSTS:
+            return configured
         return _client_host(request) or configured or "localhost"
     if bind:
         return bind

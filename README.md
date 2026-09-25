@@ -1,10 +1,15 @@
 # Syclover Training Garden Backend
 
-当前版本：**Alpha0.0.9**。每个账号最多同时运行 2 个题目环境；停止或过期后可继续启动。
+当前版本：**Alpha0.0.9-hotfix.1**。每个账号最多同时运行 2 个题目环境；停止或过期后可继续启动。
 
 FastAPI + SQLite 实现的训练平台 API，包含认证与权限、独立 CTF/AWDP 题库、ZIP 即时镜像构建、Docker 实例、Flag 计分、攻防独立血榜、Markdown Hints、附件、AWDP Check/Fix/Patch 工作流、后台实例回收和独立排行榜。
 
 初始化不会创建演示题目，生产题库需要由管理员自行创建。根管理员用户名固定为 `Syclover`，密码由 `SYCL_ADMIN_PASSWORD` 首次初始化时设置；普通管理员只能管理题目、题目内容和题目标签。Alpha0.0.6 还提供个人资料、方向、成就徽章和密码修改接口。
+
+## Alpha0.0.9-hotfix.1
+
+- 通配地址绑定时，优先使用配置的题目公网域名；未配置或配置为回环地址时回退到请求域名。
+- 修复非 root 题目容器部署 AWDP 补丁时的临时目录权限。
 
 ## Alpha0.0.9 公告、题集与成就管理
 

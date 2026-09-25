@@ -407,8 +407,15 @@ def test_instance_reports_the_address_it_is_published_on(client, player_headers)
     loopback = replace(client.app.state.settings, instance_bind_address="127.0.0.1")
     assert _effective_public_host(request, loopback) == "127.0.0.1"
 
-    wildcard = replace(client.app.state.settings, instance_bind_address="0.0.0.0")
+    wildcard = replace(
+        client.app.state.settings,
+        instance_bind_address="0.0.0.0",
+        instance_public_host="localhost",
+    )
     assert _effective_public_host(request, wildcard) == "192.168.1.50"
+
+    challenge_domain = replace(wildcard, instance_public_host="challenge.sycsec.com")
+    assert _effective_public_host(request, challenge_domain) == "challenge.sycsec.com"
 
     concrete = replace(client.app.state.settings, instance_bind_address="10.0.0.5")
     assert _effective_public_host(request, concrete) == "10.0.0.5"
